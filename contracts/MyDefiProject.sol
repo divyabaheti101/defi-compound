@@ -61,4 +61,37 @@ contract MyDefiProject {
         uint underlyingBalance = IERC20(underlying).balanceOf(address(this));
         IERC20(underlying).transfer(msg.sender, underlyingBalance);
     }
+
+    function enterMarket(address cTokenAddress) external {
+        address[] memory cTokens = new address[](1);
+        cTokens[0] = cTokenAddress;
+        uint[] memory result = comptroller.enterMarkets(cTokens);
+        require(result[0] == 0, "Enter market failed");
+    }
+
+    function borrow(address cTokenAddress, uint borrowAmount) external {
+        CTokenInterface cToken = CTokenInterface(cTokenAddress);
+        require(cToken.borrow(borrowAmount) == 0, "Borrow failed");
+        address underlying = cToken.underlying();
+        uint result = cToken.borrow(borrowAmount);
+        require(result == 0, "Borrow failed");
+    }
+
+    function repayBorrow(address cTokenAddress, uint repayAmount) external {
+        CTokenInterface cToken = CTokenInterface(cTokenAddress);
+        address underlying = cToken.underlying();
+        IERC20(underlying).transferFrom(msg.sender, address(this), repayAmount);
+        IERC20(underlying).approve(cTokenAddress, repayAmount);
+        require(cToken.repayBorrow(repayAmount) == 0, "Repay failed");
+    }
+
+    function maxBorrowable(address cTokenAddress) external view returns (uint) {
+        (uint result, uint liquidity, uint shortfall) = comptroller.getAccountLiquidity(address(this));
+        require(result == 0, "Failed to get account liquidity");
+        require(shortfall == 0, "Account is undercollateralized");
+        require(liquidity > 0, "No liquidity available");
+        uint underlyingPrice = priceOracle.getUnderlyingPrice(cTokenAddress);
+        require(underlyingPrice > 0, "Invalid underlying price");
+        return liquidity/underlyingPrice;
+    }
 }
